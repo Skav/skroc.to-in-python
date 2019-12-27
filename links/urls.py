@@ -6,5 +6,6 @@ urlpatterns = [
     path('links', views.LinkList.as_view()),
     path('links/<slug:slug>', views.LinkDetail.as_view()),
     path('users', views.UserList.as_view()),
-    path('users/<int:pk>', views.UserDetail.as_view())
+    path('users/<int:pk>', views.UserDetail.as_view()),
+    path('<slug:slug>', views.LinkRedirect.as_view()),
 ]
