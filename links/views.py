@@ -1,14 +1,23 @@
 from .models import Link
 from .serializers import LinkSerializer, UserSerializer
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from rest_framework.decorators import api_view
+from rest_framework.reverse import reverse
 from django.contrib.auth.models import User
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import redirect
 import random, string
 
+
+@api_view(['GET'])
+def api_root(request, format=None):
+    return Response({
+        'user': reverse('user-list', request=request, format=format),
+        'link': reverse('link-list', request=request, format=format)
+    })
 
 class LinkList(APIView):
     authentication_classes = [SessionAuthentication, BasicAuthentication]
@@ -31,13 +40,14 @@ class LinkList(APIView):
 
     def get(self, request, format=None):
         links = Link.objects.all()
-        serializer = LinkSerializer(links, many=True)
+        serializer = LinkSerializer(links, many=True, context={'request': request})
         return Response(serializer.data)
 
     def post(self, request, format=None):
         data = request.data
-        print(data)
-        if not Link.objects.filter(original_link=data['original_link']):
+        data['original_link'] = data['original_link'].strip()
+
+        if Link.objects.exists(original_link=data['original_link']):
 
             i = 0
             while True:
@@ -61,8 +71,6 @@ class LinkList(APIView):
 class LinkDetail(APIView):
     authentication_classes = [SessionAuthentication, BasicAuthentication]
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-
-
 
     def getLink(self, slug):
         try:
@@ -90,22 +98,15 @@ class LinkDetail(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-#TODO
-class LinkRedirect(APIView):
-    def get(self, request, slug):
+@api_view(['GET'])
+def LinkRedirect(request, slug):
         try:
-            link = Link.objects.get(slug=slug)
-            print(link.original_link)
-            url = link.original_link
-            return redirect(url)
+            link = Link.objects.values('original_link').get(slug=slug)
+            return HttpResponseRedirect(link['original_link'])
         except Link.DoesNotExist:
             raise Response({"Error": "Link with this slug doesnt exist"}, status=status.HTTP_404_NOT_FOUND)
 
 
-class UserList(generics.ListAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-
-class UserDetail(generics.RetrieveAPIView):
+class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
