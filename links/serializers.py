@@ -29,6 +29,7 @@ class UserSerializer(serializers.ModelSerializer):
             validated_data['email'],
             validated_data['password'],
         )
+        user.is_active = False
         user.save()
 
         return user
@@ -40,4 +41,8 @@ class UserSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'password': {
                 'write_only': True,
-        }}
+            },
+            'is_active': {
+                'write_only': True
+            }
+        }

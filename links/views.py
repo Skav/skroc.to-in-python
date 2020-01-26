@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view
 from rest_framework.reverse import reverse
 from django.contrib.auth.models import User
 from django.http import Http404, HttpResponseRedirect
-from .custom_permissions import IsOwner
+from .custom_permissions import IsOwner, IsOwnerOrReadOnly
 import random, string
 
 
@@ -15,7 +15,7 @@ import random, string
 def api_root(request, format=None):
     return Response({
         'user': reverse('user-list', request=request, format=format),
-        'link': reverse('link-list', request=request, format=format)
+        'link': reverse('link-list', request=request, format=format),
     })
 
 
@@ -80,7 +80,7 @@ class LinkList(APIView):
 
 
 class LinkDetail(APIView):
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwner]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
     def getLink(self, slug):
         try:
@@ -110,7 +110,7 @@ class LinkDetail(APIView):
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
     serializer_class = UserSerializer
 
 
