@@ -3,6 +3,7 @@ from . import views
 from .views import UserViewSet
 from rest_framework.urlpatterns import format_suffix_patterns
 
+
 user_list = UserViewSet.as_view({
     'get': 'list'
 })
@@ -18,5 +19,6 @@ urlpatterns = [
     path('links/<slug:slug>', views.LinkDetail.as_view(), name='link-detail'),
     path('users', user_list, name='user-list'),
     path('users/<int:pk>', user_detail, name='user-detail'),
-    path('<slug:slug>', views.LinkRedirect, name='link-redirect'),
+    path('register', views.UserRegister.as_view(), name='user-register'),
+    path('<slug:slug>', views.link_redirect, name='link-redirect'),
 ]

@@ -19,10 +19,9 @@ class LinkSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Link
-        fields = ['id', 'original_link', 'shorted_link', 'slug', 'user_id']
+        fields = ('id', 'original_link', 'shorted_link', 'slug', 'user_id')
 
 class UserSerializer(serializers.ModelSerializer):
-    links = serializers.PrimaryKeyRelatedField(many=True, queryset=models.Link.objects.all())
 
     def create(self, validated_data):
         user = User.objects.create_user(
@@ -32,8 +31,13 @@ class UserSerializer(serializers.ModelSerializer):
         )
         user.save()
 
+        return user
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'password', 'email', 'links', 'is_active']
-        write_only_fields = ('password',)
-        read_only_fields = ('id',)
+        fields = ('id', 'username', 'password', 'email', 'is_active')
+        read_only_fields = ('id', 'is_staff', 'is_superuser')
+        extra_kwargs = {
+            'password': {
+                'write_only': True,
+        }}

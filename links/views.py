@@ -8,7 +8,6 @@ from rest_framework.decorators import api_view
 from rest_framework.reverse import reverse
 from django.contrib.auth.models import User
 from django.http import Http404, HttpResponseRedirect
-from django.shortcuts import redirect
 import random, string
 
 
@@ -18,6 +17,16 @@ def api_root(request, format=None):
         'user': reverse('user-list', request=request, format=format),
         'link': reverse('link-list', request=request, format=format)
     })
+
+
+@api_view(['GET'])
+def link_redirect(request, slug, format=None):
+        try:
+            link = Link.objects.values('original_link').get(slug=slug)
+            return HttpResponseRedirect('http://'+link['original_link'])
+        except Link.DoesNotExist:
+            raise Response({"Error": "Link with this slug doesnt exist"}, status=status.HTTP_404_NOT_FOUND)
+
 
 class LinkList(APIView):
     authentication_classes = [SessionAuthentication, BasicAuthentication]
@@ -47,7 +56,7 @@ class LinkList(APIView):
         data = request.data
         data['original_link'] = data['original_link'].strip()
 
-        if Link.objects.exists(original_link=data['original_link']):
+        if not Link.objects.filter(original_link = data['original_link']).exists():
 
             i = 0
             while True:
@@ -64,7 +73,9 @@ class LinkList(APIView):
             if serializer.is_valid():
                 serializer.save(user_id=request.user)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
+
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         return Response({"Error": "Link already exist"}, status=status.HTTP_409_CONFLICT)
 
 
@@ -98,15 +109,14 @@ class LinkDetail(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-@api_view(['GET'])
-def LinkRedirect(request, slug):
-        try:
-            link = Link.objects.values('original_link').get(slug=slug)
-            return HttpResponseRedirect(link['original_link'])
-        except Link.DoesNotExist:
-            raise Response({"Error": "Link with this slug doesnt exist"}, status=status.HTTP_404_NOT_FOUND)
-
-
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = UserSerializer
+
+
+class UserRegister(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.AllowAny]
+
