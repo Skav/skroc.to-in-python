@@ -2,7 +2,7 @@ from django.urls import path
 from . import views
 from .views import UserViewSet
 from rest_framework.urlpatterns import format_suffix_patterns
-
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 user_list = UserViewSet.as_view({
     'get': 'list'
@@ -20,5 +20,7 @@ urlpatterns = [
     path('users', user_list, name='user-list'),
     path('users/<int:pk>', user_detail, name='user-detail'),
     path('register', views.UserRegister.as_view(), name='user-register'),
+    path('login', TokenObtainPairView.as_view(), name="Token_pair_view"),
+    path('login/refresh', TokenRefreshView.as_view(), name='Token_refresh'),
     path('<slug:slug>', views.link_redirect, name='link-redirect'),
 ]

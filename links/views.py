@@ -3,11 +3,11 @@ from .serializers import LinkSerializer, UserSerializer
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.authentication import SessionAuthentication, BasicAuthentication
 from rest_framework.decorators import api_view
 from rest_framework.reverse import reverse
 from django.contrib.auth.models import User
 from django.http import Http404, HttpResponseRedirect
+from .custom_permissions import IsOwner
 import random, string
 
 
@@ -29,7 +29,6 @@ def link_redirect(request, slug, format=None):
 
 
 class LinkList(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def generateRandomString(self, lenght=5):
@@ -51,6 +50,7 @@ class LinkList(APIView):
         links = Link.objects.all()
         serializer = LinkSerializer(links, many=True, context={'request': request})
         return Response(serializer.data)
+
 
     def post(self, request, format=None):
         data = request.data
@@ -80,8 +80,7 @@ class LinkList(APIView):
 
 
 class LinkDetail(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwner]
 
     def getLink(self, slug):
         try:
