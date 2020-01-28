@@ -3,5 +3,5 @@ env/
 links/__pycache__
 links/migrations/
 skroc_to/__pycache__
-
+db.*
 

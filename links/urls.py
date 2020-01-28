@@ -19,8 +19,9 @@ urlpatterns = [
     path('links/<slug:slug>', views.LinkDetail.as_view(), name='link-detail'),
     path('users', user_list, name='user-list'),
     path('users/<int:pk>', user_detail, name='user-detail'),
-    path('register', views.UserRegister.as_view(), name='user-register'),
+    path('register', views.Register.as_view(), name='user-register'),
     path('login', TokenObtainPairView.as_view(), name="Token_pair_view"),
     path('login/refresh', TokenRefreshView.as_view(), name='Token_refresh'),
+    path('activate', views.ActivateAccount.as_view(), name='activate_account'),
     path('<slug:slug>', views.link_redirect, name='link-redirect'),
 ]

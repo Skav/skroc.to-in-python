@@ -46,3 +46,12 @@ class UserSerializer(serializers.ModelSerializer):
                 'write_only': True
             }
         }
+
+
+class ActivateCodeSerializer(serializers.ModelSerializer):
+    user_id = serializers.ReadOnlyField(source='user.id')
+
+    class Meta:
+        model = models.ActivateCode
+        fields = ('id', 'activation_code', 'code_type', 'user_id', 'created_at', 'expires_at', 'is_active')
+        read_only_fields = ('id',)
