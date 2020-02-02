@@ -15,73 +15,78 @@ from django.forms.models import model_to_dict
 from django.core.mail import send_mail
 from django.contrib.auth.hashers import hashlib
 
-# TODO clean code
+
 class ActivateAccount(APIView):
 
     def get_code(self, code):
         try:
             return ActivateCode.objects.get(activation_code=code)
         except ActivateCode.DoesNotExist:
-            return False
+            raise
 
     def get_user(self, user_id):
         try:
             return User.objects.get(id=user_id)
         except User.DoesNotExist:
-            return False
+            raise
 
     def check_is_code_active(self, codeObject):
-        if codeObject.is_active:
-            return True
-        else:
-            return False
-
+        try:
+            if codeObject.is_active:
+                return True
+            else:
+                return False
+        except codeObject is None:
+            raise TypeError
 
     def check_is_link_expiresed(self, codeObject):
-        if codeObject.expires_at >= timezone.now():
-            return False
-        else:
-            return True
-
+        try:
+            if codeObject.expires_at >= timezone.now():
+                return False
+            else:
+                return True
+        except codeObject is None:
+            raise TypeError
 
     def put(self, request):
-        data = request.data
-        code = self.get_code(data['code'])
+        try:
+            data = request.data
+            code = self.get_code(data['code'])
 
-        if not code:
-            return Response({'Error': 'Code does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+            if not code.code_type == 'a':
+                return Response({'Error': 'You use wrong endpoint!'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not code.code_type == 'a':
-            return Response({'Error': 'You use wrong endpoint!'}, status=status.HTTP_400_BAD_REQUEST)
+            if self.check_is_code_active(code):
+                if not self.check_is_link_expiresed(code):
 
-        if self.check_is_code_active(code):
-            if not self.check_is_link_expiresed(code):
+                    user = self.get_user(code.user_id)
+                    user.is_active = True
+                    user_serializer = UserSerializer(user, data=model_to_dict(user))
 
-                user = self.get_user(code.user_id)
-                if not user:
-                    return Response({'Error': 'User does not exist'}, status=status.HTTP_409_CONFLICT)
+                    if user_serializer.is_valid():
+                        code.is_active = False
+                        code.updated_at = timezone.now()
+                        code_serializer = ActivateCodeSerializer(code, data=model_to_dict(code))
 
-                user.is_active = True
-                user_serializer = UserSerializer(user, data=model_to_dict(user))
+                        if code_serializer.is_valid():
+                            user_serializer.save()
+                            code_serializer.save()
+                            return Response({'data': 'Account sucessfully activated'},status=status.HTTP_200_OK)
 
-                if user_serializer.is_valid():
-                    code.is_active = False
-                    code.updated_at = timezone.now()
-                    code_serializer = ActivateCodeSerializer(code, data=model_to_dict(code))
+                        return Response(code_serializer.errors, status=status.HTTP_409_CONFLICT)
 
-                    if code_serializer.is_valid():
-                        user_serializer.save()
-                        code_serializer.save()
-                        return Response({'data': 'Account sucessfully activated'},status=status.HTTP_200_OK)
-                    return Response(code_serializer.errors, status=status.HTTP_409_CONFLICT)
-
-                else:
                     return Response(user_serializer.errors, status=status.HTTP_409_CONFLICT)
-            else:
+
                 return Response({'Error': 'Links is expiresed'}, status=status.HTTP_410_GONE)
-        else:
+
             return Response({'Error': 'This link is not longer available'}, status=status.HTTP_403_FORBIDDEN)
 
+        except TypeError as e:
+            return Response(e.value, status=status.HTTP_409_CONFLICT)
+        except User.DoesNotExist:
+            return Response({"Error": "User does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        except ActivateCode.DoesNotExist:
+            return Response({"Error": "Code does not exist!"}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 def api_root(request, format=None):
