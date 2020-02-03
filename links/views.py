@@ -8,64 +8,73 @@ from rest_framework.reverse import reverse
 from django.contrib.auth.models import User
 from django.http import Http404, HttpResponseRedirect
 from .custom_permissions import IsOwner, IsOwnerOrReadOnly
+from .custom_function import ActivationCodeFunctions
 import random, string
 from datetime import datetime
-from django.utils import timezone
 from django.forms.models import model_to_dict
-from django.core.mail import send_mail
 from django.contrib.auth.hashers import hashlib
 
 
-class ActivateAccount(APIView):
-
-    def get_code(self, code):
-        try:
-            return ActivateCode.objects.get(activation_code=code)
-        except ActivateCode.DoesNotExist:
-            raise
-
-    def get_user(self, user_id):
-        try:
-            return User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            raise
-
-    def check_is_code_active(self, codeObject):
-        try:
-            if codeObject.is_active:
-                return True
-            else:
-                return False
-        except codeObject is None:
-            raise TypeError
-
-    def check_is_link_expiresed(self, codeObject):
-        try:
-            if codeObject.expires_at >= timezone.now():
-                return False
-            else:
-                return True
-        except codeObject is None:
-            raise TypeError
+class ReedemPassword(APIView):
 
     def put(self, request):
         try:
             data = request.data
-            code = self.get_code(data['code'])
+            CodeFunctions = ActivationCodeFunctions(data['code'])
+            print(request.data)
 
-            if not code.code_type == 'a':
+            if not CodeFunctions.is_correct_endpoint(code_type='r'):
                 return Response({'Error': 'You use wrong endpoint!'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if self.check_is_code_active(code):
-                if not self.check_is_link_expiresed(code):
+            if CodeFunctions.check_is_code_active():
+                if not CodeFunctions.is_link_expiresed():
 
-                    user = self.get_user(code.user_id)
-                    user.is_active = True
+                    CodeFunctions.set_user_password(data['password'])
+                    user = CodeFunctions.get_user_object()
                     user_serializer = UserSerializer(user, data=model_to_dict(user))
 
                     if user_serializer.is_valid():
-                        code.is_active = False
-                        code.updated_at = timezone.now()
+
+                        CodeFunctions.deactive_code()
+                        code = CodeFunctions.get_code_object()
+                        code_serializer = ActivateCodeSerializer(code, data=model_to_dict(code))
+
+                        if code_serializer.is_valid():
+                            user_serializer.save()
+                            code_serializer.save()
+                            return Response({'data': 'Password change succesfully'}, status=status.HTTP_200_OK)
+
+                        return Response(code_serializer.errors, status=status.HTTP_409_CONFLICT)
+                    return Response(user_serializer.errors, status=status.HTTP_409_CONFLICT)
+                return Response({'Error': 'Links is expired'}, status=status.HTTP_410_GONE)
+            return Response({'Error': 'Links is no longer available'}, status=status.HTTP_410_GONE)
+
+        except User.DoesNotExist:
+            return Response({'Error': 'User does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except ActivateCode.DoesNotExist:
+            return Response({'Error': 'Code does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ActivateAccount(APIView):
+
+    def put(self, request):
+        try:
+            data = request.data
+            CodeFunctions = ActivationCodeFunctions(data['code'])
+
+            if not CodeFunctions.is_correct_endpoint('a'):
+                return Response({'Error': 'You use wrong endpoint!'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if CodeFunctions.check_is_code_active():
+                if not CodeFunctions.is_link_expiresed():
+
+                    CodeFunctions.activate_user()
+                    user = CodeFunctions.get_user_object()
+                    user_serializer = UserSerializer(user, data=model_to_dict(user))
+
+                    if user_serializer.is_valid():
+                        CodeFunctions.deactive_code()
+                        code = CodeFunctions.get_code_object()
                         code_serializer = ActivateCodeSerializer(code, data=model_to_dict(code))
 
                         if code_serializer.is_valid():
