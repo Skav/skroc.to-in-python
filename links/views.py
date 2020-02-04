@@ -8,20 +8,47 @@ from rest_framework.reverse import reverse
 from django.contrib.auth.models import User
 from django.http import Http404, HttpResponseRedirect
 from .custom_permissions import IsOwner, IsOwnerOrReadOnly
-from .custom_function import ActivationCodeFunctions
+from .custom_function import ActivationCodeFunctions, check_is_keys_in_request, generate_code
 import random, string
-from datetime import datetime
 from django.forms.models import model_to_dict
-from django.contrib.auth.hashers import hashlib
+from rest_framework.parsers import JSONParser
 
 
 class ReedemPassword(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get_user(self, email):
+        try:
+            return User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise
+
+    def post(self, request):
+        try:
+            data = request.data
+
+            if check_is_keys_in_request(data, ['email']):
+                user = self.get_user(data['email'])
+                if user.is_active == True:
+                    activation_code = generate_code(user)
+                    code_serializer = ActivateCodeSerializer(data={'activation_code': activation_code, 'code_type': 'r'})
+                    if code_serializer.is_valid():
+                        code_serializer.save(user_id=user.id)
+                        return Response({'data': 'Link for reedem pasword was send to your email'}, status=status.HTTP_200_OK)
+                    return Response(code_serializer.errors)
+                return Response({'Error': 'User is not active'}, status=status.HTTP_400_BAD_REQUEST)
+
+        except ValueError as error:
+            return Response({'Error': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+        except User.DoesNotExist:
+            return Response({'Error': 'User with this email does not exists'}, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request):
         try:
             data = request.data
-            CodeFunctions = ActivationCodeFunctions(data['code'])
-            print(request.data)
+
+            if check_is_keys_in_request(data, ['code', 'password']):
+                CodeFunctions = ActivationCodeFunctions(data['code'])
 
             if not CodeFunctions.is_correct_endpoint(code_type='r'):
                 return Response({'Error': 'You use wrong endpoint!'}, status=status.HTTP_400_BAD_REQUEST)
@@ -53,14 +80,19 @@ class ReedemPassword(APIView):
             return Response({'Error': 'User does not exist'}, status=status.HTTP_400_BAD_REQUEST)
         except ActivateCode.DoesNotExist:
             return Response({'Error': 'Code does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as error:
+            return Response({'Error': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ActivateAccount(APIView):
+    permission_classes = [permissions.AllowAny]
 
     def put(self, request):
         try:
             data = request.data
-            CodeFunctions = ActivationCodeFunctions(data['code'])
+
+            if check_is_keys_in_request(data, ['code']):
+                CodeFunctions = ActivationCodeFunctions(data['code'])
 
             if not CodeFunctions.is_correct_endpoint('a'):
                 return Response({'Error': 'You use wrong endpoint!'}, status=status.HTTP_400_BAD_REQUEST)
@@ -106,6 +138,7 @@ def api_root(request, format=None):
 
 
 @api_view(['GET'])
+@permission_classes([permissions.AllowAny])
 def link_redirect(request, slug, format=None):
         try:
             link = Link.objects.values('original_link').get(slug=slug)
@@ -203,14 +236,11 @@ class UserViewSet(viewsets.ModelViewSet):
 class Register(APIView):
     permission_classes = [permissions.AllowAny]
 
-    def generate_code(self, userObject):
-        return hashlib.sha256("{}{}".format(userObject['username'], datetime.now()).encode('utf-8')).hexdigest()
-
     def post(self, request):
         data = request.data
         user = UserSerializer(data=data)
         if user.is_valid():
-            activation_code = self.generate_code(user.validated_data)
+            activation_code = generate_code(user.validated_data)
             link = ActivateCodeSerializer(data={'activation_code': activation_code, 'code_type': 'a'})
             if link.is_valid():
                 user.save()

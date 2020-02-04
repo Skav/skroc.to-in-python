@@ -1,7 +1,25 @@
 from django.utils import timezone
 from .models import ActivateCode, User
 from .serializers import UserSerializer, ActivateCodeSerializer
+from django.contrib.auth.hashers import hashlib
+from datetime import datetime
 
+
+def check_is_keys_in_request(request_dict: dict, requirement: list):
+
+    lost_keys = ''
+
+    for key in requirement:
+        if not key in request_dict:
+            lost_keys += "{}, ".format(key)
+
+    if lost_keys != '':
+        raise ValueError('This keys is require: {}'.format(lost_keys))
+
+    return True
+
+def generate_code(userObject):
+    return hashlib.sha256("{}{}".format(userObject.username, datetime.now()).encode('utf-8')).hexdigest()
 
 class ActivationCodeFunctions():
 
